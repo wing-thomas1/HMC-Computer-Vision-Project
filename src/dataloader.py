@@ -1,5 +1,5 @@
 import cv2
-import numpy as np
+
 
 class Trial:
     def __init__(self, video_path):
@@ -56,9 +56,9 @@ class Trial:
         return wrapper
     
     
-    
     ## TODO: Add an undo function
     # def undo(self, frame):
+
 
     @for_all_frames
     def to_gray(self, frame):
@@ -75,13 +75,24 @@ class Trial:
     def change_contrast(self, frame, alpha=1, beta=0):
         return cv2.convertScaleAbs(frame, alpha=alpha, beta=beta)
     
-    # @for_all_frames
-    # def detect_horizontal(self, frame, ksize=3):
-    #     return cv2.Sobel(frame, cv2.CV_64F, 0, 1, ksize=ksize)
+    @for_all_frames
+    def dilate(self, frame, kernel=cv2.MORPH_ELLIPSE, ksize=(3,3)):
+        element = cv2.getStructuringElement(kernel, ksize)
+        return cv2.dilate(frame, element)
+    
+    @for_all_frames
+    def erode(self, frame, kernel=cv2.MORPH_ELLIPSE, ksize=(3,3)):
+        element = cv2.getStructuringElement(kernel, ksize)
+        return cv2.erode(frame, element)
 
     @for_all_frames
-    def detect_horizontal(self, frame, thresh1=50, thresh2=50):
+    def detect_horizontal(self, frame, thresh1=50, thresh2=150):
         return cv2.Canny(frame, thresh1, thresh2)
+    
+    @for_all_frames
+    def connect_le_components(self, frame, connectivity=8, ltype=cv2.CV_32S):
+        _, out = cv2.connectedComponents(frame, connectivity=connectivity, ltype=ltype)
+        return out
     
     @for_all_frames
     def crop_top(self, frame):
