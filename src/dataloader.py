@@ -1,23 +1,20 @@
 import cv2
+import numpy as np
 
 
 class Trial:
+    sharpening_kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+
     def __init__(self, video_path):
         if isinstance(video_path, str):
             self.frames = self.load_mov_as_array(video_path)
         elif isinstance(video_path, list):
             self.frames = video_path
-            if video_path[0].ndim == 3:
-                self.is_gray = False
-            else:
-                self.is_gray = True
         else:
             TypeError("Not a valid type")
         
 
-        # self.frames = self.load_mov_as_array(video_path)
-        self.is_gray = False
-    
+        self.__original = self.frames
 
     def load_mov_as_array(self, video_path):
         cap = cv2.VideoCapture(video_path)
@@ -55,16 +52,19 @@ class Trial:
         
         return wrapper
     
-    
+
     ## TODO: Add an undo function
     # def undo(self, frame):
+
+    @for_all_frames
+    def median_blur(self, frame, ksize=(3,3)):
+        return cv2.medianBlur(frame, ksize=ksize)
 
 
     @for_all_frames
     def to_gray(self, frame):
         if frame.ndim == 2:
             return frame
-        self.is_gray = True
         return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
     @for_all_frames
@@ -86,8 +86,13 @@ class Trial:
         return cv2.erode(frame, element)
 
     @for_all_frames
-    def detect_horizontal(self, frame, thresh1=50, thresh2=150):
+    def edges(self, frame, thresh1=25, thresh2=100):
         return cv2.Canny(frame, thresh1, thresh2)
+    
+
+    @for_all_frames
+    def sharpen(self, frame, ddepth=-1):
+        return cv2.filter2D(frame, ddepth=ddepth, kernel=self.sharpening_kernel)
     
     @for_all_frames
     def connect_le_components(self, frame, connectivity=8, ltype=cv2.CV_32S):
@@ -102,8 +107,37 @@ class Trial:
             return frame[y_min:, :]
         else:
             return frame[y_min:, :, :]
-
+        
+        
+    def create_overlay(self, other):
+        L_out = []
+        # if other[0].shape[:3] != self.frames[0].shape[:3]:
+        #     print("No can do, buckaroo")
+        #     return None
+        for frame in zip(other, self.frames):
+            overlay = frame[0].copy()
+            # print("Frame[1].shape:", frame[1].shape)
+            # print("Frame[0].shape:", frame[0].shape)
+            overlay[frame[1] > 0] = [0, 255, 0]
+            L_out.append(overlay)
+            
+        return Trial(L_out)
     
+    # def create_average_img(self):
+    #     out_img = self.__original[0]
+    #     for i in self.__original[1:]:
+    #         out_img += i
+        
+    #     return out_img / (len(self.__original) - 1)
+
+
+    def create_average_img(self):
+        out_img = self.frames[0]
+        for i in range(len(self.frames[1:])):
+            out_img = cv2.addWeighted(out_img*i/(i+1), 0, self.frames[i]/(i+1), 1, 0)
+        
+        return out_img
+
 
     def __getitem__(self, index):
         return self.frames[index]
