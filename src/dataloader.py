@@ -61,7 +61,7 @@ class Trial:
     
     # @undoable
 
-    
+
     def for_all_frames(func):
         def wrapper(self, inplace=False, *args, **kwargs):
             out_frames = [func(self, frame, *args, **kwargs) for frame in self.frames]
@@ -157,6 +157,11 @@ class Trial:
         self.shape = new.shape
         return new
     
+    
+    @for_all_frames
+    def ranger(self, frame, minval, maxval):
+        return cv2.inRange(frame, lowerb=minval, upperb=maxval)
+    
     @for_all_frames
     def color_reduce(self, frame, K=4):
         Z = np.float32(frame.reshape((-1, 3)))
@@ -169,30 +174,53 @@ class Trial:
         quantized = quantized.reshape(frame.shape)
 
         return quantized
+    
+    
+    def remove_avg(self):
+
+        img_avg = np.mean(self.frames, axis=0).astype('uint8')
+        # img_avg = cv2.bitwise_not(img_avg)
+        # self.show(img_avg)
+        
+        updated_frames = []
+        for frame in self.frames:
+            # frame = cv2.bitwise_not(frame)
+            frame = frame - img_avg
+            updated_frames.append(frame.astype('uint8'))
+
+        self.frames = updated_frames
+
+    def apply_mask(self, other, inplace=False):
+        out = []
+        for frame in zip(self.frames, other.frames):
+            framey = frame[0]
+            mask = frame[1]
+            mask_3_channel = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB)
+            # framey = *2//3 + framey//3
+            framey = cv2.addWeighted(cv2.bitwise_and(framey, mask_3_channel), 2, framey, 0.5, 1)
+            out.append(framey)
+        
+        if inplace:
+            self.frames = out
+        return out
 
         
         
     def create_overlay(self, other):
+        other = self.__original
         L_out = []
         for frame in zip(other, self.frames):
-            overlay = frame[0].copy()
+            overlay = c.deepcopy(frame[0])  # .copy()
             overlay[frame[1] > 0] = [0, 255, 0]
             L_out.append(overlay)
-            
-        return Trial(L_out)
+
+        self.frames = L_out
+        return L_out
     
     def show(self, frame):
         cv2.imshow("Frame", frame)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    
-    # def create_average_img(self):
-    #     out_img = self.__original[0]
-    #     for i in self.__original[1:]:
-    #         out_img += i
-        
-    #     return out_img / (len(self.__original) - 1)
-
 
     def create_average_img(self):
         out_img = self.frames[0]
