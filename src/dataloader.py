@@ -65,7 +65,7 @@ class Trial:
 
     def for_all_frames(func): 
         def wrapper(self, inplace=False, *args, **kwargs):
-            out_frames = [func(self, frame, *args, **kwargs) for frame in self.frames] #type:ignore
+            out_frames = [func(self, frame, *args, **kwargs) for frame in self.frames]
             if inplace:
                 self.frames = out_frames
                 return self
@@ -83,21 +83,6 @@ class Trial:
         out = len(self.__undo_list)
         print("Undo queue length:", out)
         return out
-    
-
-    # def undo(self):
-    #     if len(self.__undo_list) < 1:
-    #         raise IndexError("Undo queue is empty")
-    #     print(self.__undo_list[0].shape)
-    #     self.__copy_to(self.__undo_list.pop())
-    #     print(self.shape)
-
-    def __copy_to(self, other):
-        self.__original = other.__original
-        self.frames = other.frames
-        self.shape = other.shape
-        ## NOTE: This needs to be updated if other attributes are added
-
 
     @for_all_frames  #type:ignore 
     def median_blur(self, frame, ksize=3):
