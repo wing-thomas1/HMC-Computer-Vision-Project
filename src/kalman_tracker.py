@@ -41,32 +41,26 @@ class KalmanFilter:
         self.P = (I - K @ self.H) @ self.P
 
         return self.x 
-    
 
-def make_bubble_kf(dt=1.0, process_pos=5.0, process_vel=1.0, process_r=0.5, meas_xy=3.0, meas_r=2.0, x0=(0,0,0,0,5)):
-    '''
-    Ex.: state x = [x, y, v_x, v_y, r]
+def make_kf(dt=1.0):
+    # state: x, y, vx, vy
+    F = np.array([[1,0,dt,0],
+                  [0,1,0,dt],
+                  [0,0,1,0],
+                  [0,0,0,1]], dtype=np.float32)
 
-    x, y: bubble center (pixels)
-    v_x, v_y: bubble velocity (pixels/frame)
-    r: bubble radius (pixels)
-    '''
-    # update x,y based on velocity
-    F = np.array([[1,0,dt,0,0],
-                  [0,1,0,dt,0],
-                  [0,0,1, 0,0],
-                  [0,0,0, 1,0],
-                  [0,0,0, 0,1]], dtype=np.float32)
-    
-    # measure x, y and radius 
-    H = np.array([[1,0,0,0,0],
-                  [0,1,0,0,0],
-                  [0,0,0,0,1]], dtype=np.float32)
-    Q = np.diag([process_pos, process_pos, process_vel, process_vel, process_r]).astype(np.float32)
-    R = np.diag([meas_xy, meas_xy, meas_r]).astype(np.float32)
-    x0 = np.array(x0, dtype=np.float32).reshape(5,1)
-    P0 = np.eye(5, dtype=np.float32)*10.0
+    H = np.array([[1,0,0,0],
+                  [0,1,0,0]], dtype=np.float32)
+
+    Q = np.eye(4, dtype=np.float32) * 0.1
+    R = np.eye(2, dtype=np.float32) * 5
+    P0 = np.eye(4, dtype=np.float32) * 10
+
+    x0 = np.zeros((4,1), dtype=np.float32)
+
     return KalmanFilter(F=F, H=H, Q=Q, R=R, x0=x0, P0=P0, B=None)
+
+
 
 def measurement_likelihood(kf, z):
     """
@@ -90,16 +84,42 @@ def measurement_likelihood(kf, z):
 
     return d2
 
+class BubbleTrack:
+    def __init__(self, kf, max_misses=10):
+        self.kf = kf
+        self.misses = 0
+        self.max_misses = max_misses
+        self.history = [] 
+
+    def predict(self):
+        x = self.kf.predict()
+        self.history.append((float(x[0]), float(x[1])))
+        return x
+    
+    def update(self, z):
+        self.kf.update(z)
+        self.misses = 0
+    
+    def miss(self):
+        self.misses += 1
+    
+    def dead(self):
+        return self.misses > self.max_misses
 
 
+def pick_best_detection(kf, detections, threshold=25):
+    """Return best detection based on statistical distance."""
+    best = None
+    best_d2 = float("inf")
 
+    for (x, y, r) in detections:
+        z = np.array([[x], [y], [r]], dtype=np.float32)
+        d2 = measurement_likelihood(kf, z)
 
+        if d2 < best_d2:
+            best_d2 = d2
+            best = (x, y, r)
 
-
-# maybe use bayesian statistic to see if it was a bubble then, is it still a bubble now
-
-# waterline: run super low trheshold edge detector
-
-
-# find way to evaluate performance, find wheer you have to manually labor 
-# kalman filter? bayesian stats?
+    if best is not None and best_d2 < threshold:
+        return best
+    return None
