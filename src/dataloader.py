@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import copy as c
 
-class Trial:
+class MOVE:
     sharpening_kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]]) 
 
 
@@ -26,17 +26,15 @@ class Trial:
         out.release()
 
         
-
-
     @classmethod
     def show(self, frame):
+        """Shows the inputted image"""
         cv2.imshow("Frame", frame)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-        
 
     def load_mov_as_array(self, video_path):
-        """Loads the frames of a .mov file given its filepath/name"""
+        """Loads the frames of a .mov file into the MOVE object given its filepath/name"""
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -52,7 +50,7 @@ class Trial:
     
 
     def play_video(self):
-        """Plays the trial recording"""
+        """Plays the processed MOVE recording"""
 
         for frame in self.frames:
             cv2.imshow("Video Frame", frame)
@@ -72,6 +70,7 @@ class Trial:
 
 
     def copy(self):
+        """Makes a deep copy of the object"""
         dupe = c.deepcopy(self)
         return dupe
     
@@ -83,7 +82,7 @@ class Trial:
                 self.frames = out_frames
                 return self
             else:
-                output:Trial = self.copy()
+                output:MOVE = self.copy()
                 output.frames = out_frames
                 return output
         return wrapper
@@ -141,6 +140,7 @@ class Trial:
     def edge_blur(self, frame, **kwargs):
         return cv2.edgePreservingFilter(frame, **kwargs)
     
+
     # ---------------------------------
     #  MORPHOLOGICAL TRANSFORMATIONS
     # ---------------------------------
@@ -169,7 +169,7 @@ class Trial:
 
 
     # ---------------------------------
-    #  FEATURE DETECTORS
+    #  FEATURE DETECTION
     # ---------------------------------
 
     @for_all_frames  
@@ -186,35 +186,49 @@ class Trial:
         return out
     
     @for_all_frames
-    def replace(self, frame, img):
+    def img_like(self, frame, img):
+        """Replaces each frame with img"""
         return img
     
-    
-    @for_all_frames  
-    def crop_top(self, frame):
-        y = frame.shape[0]
-        y_min = (2 * y) // 5
-        if frame.ndim == 2:
-            new = frame[y_min:, :]
-        else:
-            new = frame[y_min:, :, :]
-        self.shape = new.shape
-        return new
-    
-    
-    
-    
 
-    def get_avg(self, skipframes=0, the_fake_one=True) -> np.ndarray:
+    # ---------------------------------
+    #  Masking Utilities
+    # ---------------------------------
+
+    def get_avg(self, skipframes=0) -> np.ndarray:
+        """
+        Creates the time-average image to act as a pseudo-background 
+        (static) image
+
+        :param skipframes: Optional parameter to dictate how many frames 
+            to skip from the start to prevent over-representation of the
+            starting fin position in the pseudo-background image
+        """
         return np.mean(self.frames[skipframes:], axis=0).astype('uint8')
     
     
-    def remove_avg(self, skipframes=0, the_fake_one=True):
-        img_avg = self.get_avg(skipframes=skipframes, the_fake_one=the_fake_one)
+    def remove_avg(self, skipframes=0, happy_accident_mode=True):
+        """
+        Subtracts the average image from all frames
+
+        :param skipframes: Optional parameter to dictate how many frames 
+            to skip from the start to prevent over-representation of the
+            starting fin position in the pseudo-background image
+        :param happy_accident_mode: When False, this mode takes the absolute
+            difference between the two images it compares. When enabled, the
+            function merely subtracts the average image from a given image,
+            meaning that when the average image is brighter than the given
+            image, the pixel's value becomes negative which wraps around to
+            positive, making these spots extremely bright. This had an
+            unintentionally positive effect that greatly improved the 
+            pipeline's results
+        """
+
+        img_avg = self.get_avg(skipframes=skipframes)
         
         updated_frames = []
         for frame in self.frames:
-            if the_fake_one:
+            if happy_accident_mode:
                 frame = frame - img_avg 
             else:
                 frame = cv2.absdiff(frame, img_avg)
@@ -223,7 +237,15 @@ class Trial:
 
         self.frames = updated_frames
 
+
     def apply_mask(self, other, inplace=False):
+        """
+        Overlays a mask video that highlights the masked regions of each frame
+            and darkens unmasked regions
+        
+        :param other: The 
+        :param inplace: Description
+        """
         out = []
         for frame in zip(self.frames, other.frames):
             framey = frame[0]
@@ -238,6 +260,7 @@ class Trial:
     
 
     def combine_masks(self, other, inplace=False):
+        """Combines two masks"""
         out = []
         for frame in zip(self.frames, other.frames):
             frameS, frameO = frame
@@ -249,15 +272,18 @@ class Trial:
         if inplace:
             self.frames = out
         return out
+    
+    @for_all_frames
+    def generic_filter(self, frame, /, func, **kwargs):
+        return func(frame, **kwargs)
 
     def __getitem__(self, index):
         img = self.frames[index]
-        Trial.show(img)
         return img
     
 
     def __eq__(self, other) -> bool:
-        if not isinstance(other, Trial):
+        if not isinstance(other, MOVE):
             return TypeError
         if self.shape != other.shape:
             return False
@@ -270,13 +296,13 @@ class Trial:
         return True
         
 
-Trial.median_blur.__doc__ = cv2.medianBlur.__doc__
-Trial.sharpen.__doc__ = cv2.filter2D.__doc__
-Trial.edge_blur.__doc__ = cv2.edgePreservingFilter.__doc__
-Trial.change_contrast.__doc__ = cv2.convertScaleAbs.__doc__
-Trial.edges.__doc__ = cv2.Canny.__doc__
-Trial.contour.__doc__ = cv2.findContours.__doc__
-Trial.connect_le_components.__doc__ = cv2.connectedComponents.__doc__
+MOVE.median_blur.__doc__ = cv2.medianBlur.__doc__
+MOVE.sharpen.__doc__ = cv2.filter2D.__doc__
+MOVE.edge_blur.__doc__ = cv2.edgePreservingFilter.__doc__
+MOVE.change_contrast.__doc__ = cv2.convertScaleAbs.__doc__
+MOVE.edges.__doc__ = cv2.Canny.__doc__
+MOVE.contour.__doc__ = cv2.findContours.__doc__
+MOVE.connect_le_components.__doc__ = cv2.connectedComponents.__doc__
 
 
     
