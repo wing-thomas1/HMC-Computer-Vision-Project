@@ -165,7 +165,10 @@ class MOVE:
     
     @for_all_frames
     def closing(self, frame, ksize=(3,3), iterations=1, **kwargs):
-        return cv2.morphologyEx(frame, cv2.MORPH_CLOSE, ksize, iterations=iterations, **kwargs)
+        # kernel = np.ones(ksize, np.uint8)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, ksize=ksize)
+
+        return cv2.morphologyEx(frame, cv2.MORPH_CLOSE, kernel, iterations=iterations, **kwargs)
 
 
     # ---------------------------------
@@ -175,10 +178,6 @@ class MOVE:
     @for_all_frames  
     def edges(self, frame, thresh1=25, thresh2=100, **kwargs):
         return cv2.Canny(frame, thresh1, thresh2, **kwargs)
-    
-    @for_all_frames  
-    def contour(self, frame, mode=cv2.RETR_EXTERNAL, method=cv2.CHAIN_APPROX_SIMPLE, **kwargs):
-        return cv2.findContours(frame, mode, method, **kwargs)
     
     @for_all_frames  
     def connect_le_components(self, frame, connectivity=8, ltype=cv2.CV_32S, **kwargs):
@@ -229,7 +228,7 @@ class MOVE:
         updated_frames = []
         for frame in self.frames:
             if happy_accident_mode:
-                frame = frame - img_avg 
+                frame = np.where(frame <= img_avg, img_avg - frame, np.zeros_like(frame))
             else:
                 frame = cv2.absdiff(frame, img_avg)
 
@@ -301,7 +300,6 @@ MOVE.sharpen.__doc__ = cv2.filter2D.__doc__
 MOVE.edge_blur.__doc__ = cv2.edgePreservingFilter.__doc__
 MOVE.change_contrast.__doc__ = cv2.convertScaleAbs.__doc__
 MOVE.edges.__doc__ = cv2.Canny.__doc__
-MOVE.contour.__doc__ = cv2.findContours.__doc__
 MOVE.connect_le_components.__doc__ = cv2.connectedComponents.__doc__
 
 
